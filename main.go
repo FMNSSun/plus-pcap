@@ -5,12 +5,14 @@ import "github.com/google/gopacket/pcap"
 import "github.com/google/gopacket"
 import "github.com/google/gopacket/layers"
 import "flag"
+import "net"
 
 var path = flag.String("pcap-file", "", "Path to a PCAP file.")
 var live = flag.Bool("live", false, "Live capture? If set to true capture packets from specified iface.")
 var snaplen = flag.Int("snaplen", 8129, "Snaplen: Max length of captured payload per packet.")
 var iface = flag.String("iface", "eth0", "Interface to use.")
 var plusOnly = flag.Bool("plus-only", true, "Only plus? If set to true ignore non-PLUS packets.")
+var dumpType = flag.String("dump-type", "gopacket", "Dump PLUS header as JSON?")
 
 func main() {
 	flag.Parse()
@@ -39,6 +41,36 @@ func main() {
 	}
 }
 
+type metainfo struct {
+	DstIP net.IP
+	SrcIP net.IP
+	DstPort uint16
+	SrcPort uint16
+}
+
+var jsonDumpStr = "{\"src_ip\":\"%s\",\"dst_ip\":\"%s\",\"src_port\":%d,\"dst_port\":%d,\"cat\":%d,\"psn\":%d,\"pse\":%d,\"magic\":%d,\"pcf_integrity\":%d,\"pcf_len\":%d,\"pcf_type\":%d,\"pcf_value\":%d,\"flags\":{\"xflag\":%t,\"sflag\":%t,\"rflag\":%t,\"lflag\":%t}}\n"
+
+func dumpJSONPLUS(packet gopacket.Packet, plusLayer gopacket.Layer, meta metainfo) {
+	switch plusLayer.(type) {
+		case *layers.PLUS:
+			pl := plusLayer.(*layers.PLUS)
+			fmt.Printf(jsonDumpStr, meta.SrcIP.String(), meta.DstIP.String(),
+				meta.SrcPort, meta.DstPort,
+				pl.CAT, pl.PSN, pl.PSE, pl.Magic,
+				pl.PCFIntegrity, pl.PCFLen, pl.PCFType, pl.PCFValue,
+				pl.XFlag, pl.SFlag, pl.RFlag, pl.LFlag)
+	}
+}
+
+func dumpPLUS(packet gopacket.Packet, plusLayer gopacket.Layer, meta metainfo) {
+	switch *dumpType {
+		case "gopacket":
+			fmt.Println(packet)
+		case "json":
+			dumpJSONPLUS(packet, plusLayer, meta)
+	}
+}
+
 func runWithPacketSource(packetSource *gopacket.PacketSource) {
 	for packet := range packetSource.Packets() {
 		if *plusOnly {
@@ -48,20 +80,38 @@ func runWithPacketSource(packetSource *gopacket.PacketSource) {
 				continue
 			}
 
-			plusFound := false
+			var plusLayer gopacket.Layer = nil
+			var srcIP net.IP = nil
+			var dstIP net.IP = nil
+			var srcPort = uint16(0)
+			var dstPort = uint16(0)
 
 			for _, layer := range packetLayers {
 				if layer.LayerType() == layers.LayerTypePLUS {
-					plusFound = true
+					plusLayer = layer
 					break
+				}
+
+				if layer.LayerType() == layers.LayerTypeIPv4 {
+					layer := layer.(*layers.IPv4)
+					srcIP = layer.SrcIP
+					dstIP = layer.DstIP
+				}
+
+				if layer.LayerType() == layers.LayerTypeUDP {
+					layer := layer.(*layers.UDP)
+					srcPort = uint16(layer.SrcPort)
+					dstPort = uint16(layer.DstPort)
 				}
 			}
 
-			if !plusFound {
+			if plusLayer == nil {
 				continue
 			}
-		}
 
-		fmt.Println(packet)
+			dumpPLUS(packet, plusLayer, metainfo { DstIP : dstIP, SrcIP : srcIP, SrcPort : srcPort, DstPort : dstPort })
+		} else {
+			fmt.Println(packet)
+		}
 	}
 }

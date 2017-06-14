@@ -5,7 +5,6 @@ import "github.com/google/gopacket/pcap"
 import "github.com/google/gopacket"
 import "github.com/google/gopacket/layers"
 import "flag"
-import "net"
 import "encoding/json"
 
 var path = flag.String("pcap-file", "", "Path to a PCAP file.")
@@ -43,36 +42,6 @@ func main() {
 	}
 }
 
-type metainfo struct {
-	DstIP net.IP
-	SrcIP net.IP
-	DstPort uint16
-	SrcPort uint16
-}
-
-var jsonDumpStr = "{\"src_ip\":\"%s\",\"dst_ip\":\"%s\",\"src_port\":%d,\"dst_port\":%d,\"cat\":%d,\"psn\":%d,\"pse\":%d,\"magic\":%d,\"pcf_integrity\":%d,\"pcf_len\":%d,\"pcf_type\":%d,\"pcf_value\":%s,\"flags\":{\"xflag\":%t,\"sflag\":%t,\"rflag\":%t,\"lflag\":%t},\"payload\":%s}\n"
-
-func dumpJSONPLUS(packet gopacket.Packet, plusLayer gopacket.Layer, meta metainfo, showPayload bool) {
-	switch plusLayer.(type) {
-		case *layers.PLUS:
-			pl := plusLayer.(*layers.PLUS)
-
-			var payload []byte = nil
-
-			if showPayload {
-				payload = plusLayer.LayerPayload()
-			}
-
-			payloadStr, _ := json.Marshal(payload)
-			pcfValueStr, _ := json.Marshal(pl.PCFValue)
-			
-			fmt.Printf(jsonDumpStr, meta.SrcIP.String(), meta.DstIP.String(),
-				meta.SrcPort, meta.DstPort,
-				pl.CAT, pl.PSN, pl.PSE, pl.Magic,
-				pl.PCFIntegrity, pl.PCFLen, pl.PCFType, pcfValueStr,
-				pl.XFlag, pl.SFlag, pl.RFlag, pl.LFlag, payloadStr)
-	}
-}
 
 type dumpLayer struct {
 	LayerName string

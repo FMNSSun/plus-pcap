@@ -13,7 +13,7 @@ var live = flag.Bool("live", false, "Live capture? If set to true capture packet
 var snaplen = flag.Int("snaplen", 8129, "Snaplen: Max length of captured payload per packet.")
 var iface = flag.String("iface", "eth0", "Interface to use.")
 var plusOnly = flag.Bool("plus-only", true, "Only plus? If set to true ignore non-PLUS packets.")
-var dumpType = flag.String("dump-type", "gopacket", "Dump PLUS header as JSON? Available: gopacket, json, json-payload (include payload)")
+var dumpType = flag.String("dump-type", "gopacket", "Dump PLUS packets as JSON? Available: gopacket, json, json-payload (include payload). Requires plus-only!")
 
 func main() {
 	flag.Parse()

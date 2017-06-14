@@ -7,7 +7,7 @@ Inspect PLUS packets in PCAP files or live.
 Read a PCAP file with PLUS packets:
 
 ```
-./plus-pcap --pcap-file ~/MAMI/plus-pdbg.pcap -dump-type=json-payload
+./plus-pcap --pcap-file ~/MAMI/plus-pdbg.pcap -dump-type=json
 ```
 
 Live:

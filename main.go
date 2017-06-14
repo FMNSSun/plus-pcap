@@ -13,7 +13,7 @@ var live = flag.Bool("live", false, "Live capture? If set to true capture packet
 var snaplen = flag.Int("snaplen", 8192, "Snaplen: Max length of captured payload per packet.")
 var iface = flag.String("iface", "eth0", "Interface to use.")
 var plusOnly = flag.Bool("plus-only", true, "Only plus? If set to true ignore non-PLUS packets.")
-var dumpType = flag.String("dump-type", "gopacket", "Dump PLUS packets as JSON? Available: gopacket, json, json-payload (include payload). json* requires PLUS only!")
+var dumpType = flag.String("dump-type", "gopacket", "Dump packets as JSON? Available: gopacket, json")
 
 func main() {
 	flag.Parse()
@@ -23,10 +23,6 @@ func main() {
 		return
 	}
 
-	if *dumpType != "gopacket" && !*plusOnly {
-		flag.Usage()
-		return
-	}
 
 	layers.EnableHeuristics()
 
@@ -78,14 +74,27 @@ func dumpJSONPLUS(packet gopacket.Packet, plusLayer gopacket.Layer, meta metainf
 	}
 }
 
-func dumpPLUS(packet gopacket.Packet, plusLayer gopacket.Layer, meta metainfo) {
+type dumpLayer struct {
+	LayerName string
+	Layer gopacket.Layer
+}
+
+func dumpPacket(packet gopacket.Packet) {
 	switch *dumpType {
+		case "json":
+			dumpLayers := []dumpLayer{}
+			for _, layer := range packet.Layers() {
+				it := dumpLayer { LayerName : gopacket.GetLayerTypeMetadata(int(layer.LayerType())).Name,
+									   Layer : layer }
+				dumpLayers = append(dumpLayers, it)
+			}
+
+			
+			str, _ := json.Marshal(dumpLayers)
+			fmt.Println(string(str))
+
 		case "gopacket":
 			fmt.Println(packet)
-		case "json":
-			dumpJSONPLUS(packet, plusLayer, meta, false)
-		case "json-payload":
-			dumpJSONPLUS(packet, plusLayer, meta, true)
 	}
 }
 
@@ -99,10 +108,6 @@ func runWithPacketSource(packetSource *gopacket.PacketSource) {
 			}
 
 			var plusLayer gopacket.Layer = nil
-			var srcIP net.IP = nil
-			var dstIP net.IP = nil
-			var srcPort = uint16(0)
-			var dstPort = uint16(0)
 
 			for _, layer := range packetLayers {
 				if layer.LayerType() == layers.LayerTypePLUS {
@@ -110,26 +115,16 @@ func runWithPacketSource(packetSource *gopacket.PacketSource) {
 					break
 				}
 
-				if layer.LayerType() == layers.LayerTypeIPv4 {
-					layer := layer.(*layers.IPv4)
-					srcIP = layer.SrcIP
-					dstIP = layer.DstIP
-				}
-
-				if layer.LayerType() == layers.LayerTypeUDP {
-					layer := layer.(*layers.UDP)
-					srcPort = uint16(layer.SrcPort)
-					dstPort = uint16(layer.DstPort)
-				}
+				
 			}
 
 			if plusLayer == nil {
 				continue
 			}
 
-			dumpPLUS(packet, plusLayer, metainfo { DstIP : dstIP, SrcIP : srcIP, SrcPort : srcPort, DstPort : dstPort })
+			dumpPacket(packet)
 		} else {
-			fmt.Println(packet)
+			dumpPacket(packet)
 		}
 	}
 }

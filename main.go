@@ -13,6 +13,7 @@ var snaplen = flag.Int("snaplen", 8192, "Snaplen: Max length of captured payload
 var iface = flag.String("iface", "eth0", "Interface to use.")
 var plusOnly = flag.Bool("plus-only", true, "Only plus? If set to true ignore non-PLUS packets.")
 var dumpType = flag.String("dump-type", "gopacket", "Dump packets as JSON? Available: gopacket, json")
+var prettyJson = flag.Bool("pretty-json", false, "Pretty print JSON?")
 
 func main() {
 	flag.Parse()
@@ -58,9 +59,13 @@ func dumpPacket(packet gopacket.Packet) {
 				dumpLayers = append(dumpLayers, it)
 			}
 
-			
-			str, _ := json.Marshal(dumpLayers)
-			fmt.Println(string(str))
+			if !*prettyJson {
+				str, _ := json.Marshal(dumpLayers)
+				fmt.Println(string(str))
+			} else {
+				str, _ := json.MarshalIndent(dumpLayers, "", "  ")
+				fmt.Println(string(str))
+			}
 
 		case "gopacket":
 			fmt.Println(packet)
